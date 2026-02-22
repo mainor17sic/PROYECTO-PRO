@@ -76,7 +76,6 @@ function App() {
                     <Summary pedidos={pedidos} />
                 )}
             </div>
-
             <SearchFab 
                 view={view} 
                 showSearchBox={showSearchBox} 
