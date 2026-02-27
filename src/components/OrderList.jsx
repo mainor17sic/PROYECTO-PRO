@@ -118,35 +118,31 @@ const OrderCard = ({ p, onToggleEstado, onPrint }) => {
                 </div>
             </div>
 
-            {/* LISTA DE PRODUCTOS - SOLO VISUALIZACIÓN */}
-<div className="space-y-3 mb-4 bg-slate-50/80 p-5 rounded-[2rem] border border-slate-100">
-    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Productos del Pedido</p>
-    
+                            {/* LISTA DE PRODUCTOS MINIMALISTA - CANTIDADES RESALTADAS */}
+<div className="space-y-3 mb-6 bg-slate-50/80 p-5 rounded-[2rem] border border-slate-100">
     {p.items.map((it, i) => (
-        <div key={i} className="flex justify-between items-center bg-white p-3 rounded-2xl shadow-sm border border-slate-100">
+        <div key={i} className="flex justify-between items-center group">
             <div className="flex items-center gap-4">
-                
-                {/* CANTIDAD SUPER VISIBLE - SIN "X" */}
-                <div className="min-w-[64px] h-16 rounded-2xl bg-blue-700 flex items-center justify-center shadow-md border-b-4 border-blue-900">
-                    <span className="text-4xl font-black text-white tracking-tighter">
+                {/* CANTIDAD GRANDE Y VISIBLE */}
+                <div className="flex flex-col items-center justify-center bg-white border border-blue-100 shadow-sm w-12 h-12 rounded-2xl">
+                    <span className="text-xl font-black text-blue-600 leading-none">
                         {it.cantidad}
                     </span>
+                    <span className="text-[7px] font-bold text-blue-300 uppercase tracking-tighter">Cant.</span>
                 </div>
 
                 <div className="flex flex-col">
-                    <span className="text-sm font-black text-slate-800 uppercase tracking-tight leading-tight">
+                    <span className="text-[11px] font-black text-slate-700 uppercase tracking-tight">
                         {it.nombre}
                     </span>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">
-                        Precio Unitario: Q{it.precio.toFixed(2)}
+                    <span className="text-[9px] font-medium text-slate-400">
+                        Precio unit: Q{it.precio.toFixed(2)}
                     </span>
                 </div>
             </div>
 
-            {/* TOTAL POR FILA */}
             <div className="text-right">
-                <p className="text-[8px] font-black text-slate-400 uppercase">Subtotal</p>
-                <span className="text-xs font-black text-slate-900">
+                <span className="text-[11px] font-black text-slate-800">
                     Q{(it.cantidad * it.precio).toFixed(2)}
                 </span>
             </div>
