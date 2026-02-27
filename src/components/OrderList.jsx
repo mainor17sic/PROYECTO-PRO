@@ -11,6 +11,43 @@ const OrderCard = ({ p, onToggleEstado, onPrint }) => {
     const totalProductos = p.items.length;
     const entregadosCount = p.items.filter(it => it.entregadoIndividual).length;
 
+    // --- NUEVA FUNCIÓN PARA EDITAR ANTICIPO/RESTANTE ---
+    const editarAnticipo = () => {
+        const pass = prompt("PIN de seguridad para modificar saldos:");
+        if (pass === "00") {
+            const nuevoAnticipo = prompt("Ingrese el monto TOTAL que el cliente ha entregado (Abono):", anticipo);
+            
+            if (nuevoAnticipo !== null && !isNaN(nuevoAnticipo)) {
+                const valorNum = parseFloat(nuevoAnticipo);
+                
+                // Determinamos el nuevo estado de pago automáticamente
+                let nuevoEstado = 'anticipo';
+                let estaPagado = false;
+
+                if (valorNum >= total) {
+                    nuevoEstado = 'pagado';
+                    estaPagado = true;
+                } else if (valorNum <= 0) {
+                    nuevoEstado = 'pendiente';
+                    estaPagado = false;
+                }
+
+                db.collection("pedidos").doc(p.id).update({ 
+                    anticipoValor: valorNum,
+                    estadoPago: nuevoEstado,
+                    pagado: estaPagado
+                });
+
+                // Efecto de confeti si se completa el pago al editar
+                if (estaPagado && window.confetti) {
+                    window.confetti({ particleCount: 100, spread: 70, origin: { y: 0.8 } });
+                }
+            }
+        } else if (pass !== null) {
+            alert("PIN Incorrecto");
+        }
+    };
+
     const eliminarPedido = () => {
         const pass = prompt("PIN para ELIMINAR:");
         if (pass === "00" && confirm("¿Eliminar registro?")) {
@@ -28,14 +65,10 @@ const OrderCard = ({ p, onToggleEstado, onPrint }) => {
         }
     };
 
-    // Función para marcar un solo producto como entregado
     const toggleProductoEntregado = (index) => {
         const nuevosItems = [...p.items];
         nuevosItems[index].entregadoIndividual = !nuevosItems[index].entregadoIndividual;
-        
-        db.collection("pedidos").doc(p.id).update({
-            items: nuevosItems
-        });
+        db.collection("pedidos").doc(p.id).update({ items: nuevosItems });
     };
 
     return (
@@ -55,7 +88,7 @@ const OrderCard = ({ p, onToggleEstado, onPrint }) => {
                             {p.estadoPago === 'pagado' ? 'PAGADO TOTAL' : p.estadoPago === 'anticipo' ? 'CON ANTICIPO' : 'PENDIENTE PAGO'}
                         </span>
                     </div>
-                    
+
                     <h3 className="text-xl font-serif italic text-slate-800 tracking-tight leading-none">
                         {p.cliente}
                     </h3>
@@ -85,7 +118,7 @@ const OrderCard = ({ p, onToggleEstado, onPrint }) => {
                 </div>
             </div>
 
-            {/* LISTA DE PRODUCTOS CON CONTROL INDIVIDUAL */}
+            {/* LISTA DE PRODUCTOS */}
             <div className="space-y-3 mb-4 bg-slate-50/80 p-5 rounded-[2rem] border border-slate-100">
                 <div className="flex justify-between items-center mb-2 px-1">
                     <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Control de despacho</p>
@@ -107,7 +140,6 @@ const OrderCard = ({ p, onToggleEstado, onPrint }) => {
                             >
                                 <i className="fa-solid fa-check text-[10px]"></i>
                             </button>
-
                             <div className="flex flex-col">
                                 <span className={`text-[11px] font-black uppercase tracking-tight leading-none ${it.entregadoIndividual ? 'line-through text-slate-400' : 'text-slate-700'}`}>
                                     <span className="text-blue-600 mr-1">{it.cantidad}x</span> {it.nombre}
@@ -119,11 +151,13 @@ const OrderCard = ({ p, onToggleEstado, onPrint }) => {
                 ))}
             </div>
 
-            {/* RESUMEN FINANCIERO */}
-            <div className="flex justify-between items-center px-6 py-4 mb-6 bg-slate-900 rounded-[2rem] text-white shadow-xl relative overflow-hidden">
-                {/* Decoración de fondo */}
+            {/* RESUMEN FINANCIERO EDITABLE AL TOCAR */}
+            <div 
+                onClick={editarAnticipo}
+                className="flex justify-between items-center px-6 py-4 mb-6 bg-slate-900 rounded-[2rem] text-white shadow-xl relative overflow-hidden cursor-pointer active:scale-95 transition-transform"
+            >
                 <div className="absolute top-0 right-0 w-20 h-full bg-white/5 skew-x-12 translate-x-10"></div>
-                
+
                 <div className="relative">
                     <p className="text-[8px] font-black text-slate-400 uppercase leading-none mb-1">Total</p>
                     <p className="text-lg font-black leading-none">Q{total.toFixed(2)}</p>
@@ -131,14 +165,14 @@ const OrderCard = ({ p, onToggleEstado, onPrint }) => {
 
                 {p.estadoPago === 'anticipo' && (
                     <div className="text-center relative">
-                        <p className="text-[8px] font-black text-orange-400 uppercase leading-none mb-1">Abonó</p>
+                        <p className="text-[8px] font-black text-orange-400 uppercase leading-none mb-1">Abonó <i className="fa-solid fa-pencil text-[6px] ml-1"></i></p>
                         <p className="text-lg font-black leading-none text-orange-200">Q{anticipo.toFixed(2)}</p>
                     </div>
                 )}
 
                 <div className="text-right relative">
                     <p className="text-[8px] font-black text-blue-400 uppercase leading-none mb-1">
-                        {p.estadoPago === 'pagado' ? 'Saldo' : 'Falta cobrar'}
+                        {p.estadoPago === 'pagado' ? 'Saldo' : 'Falta cobrar'} <i className="fa-solid fa-pencil text-[6px] ml-1"></i>
                     </p>
                     <p className={`text-lg font-black leading-none ${p.estadoPago === 'pagado' ? 'text-emerald-400' : 'text-blue-200'}`}>
                         Q{resta.toFixed(2)}
@@ -169,6 +203,7 @@ const OrderCard = ({ p, onToggleEstado, onPrint }) => {
     );
 };
 
+// ... (OrderList se mantiene igual que tu código original)
 const OrderList = ({ pedidos, view, searchTerm, onToggleEstado, onPrint }) => {
     const pedidosFiltrados = pedidos
         .filter(p => view === 'agenda' ? !p.entregado : p.entregado)
@@ -194,19 +229,12 @@ const OrderList = ({ pedidos, view, searchTerm, onToggleEstado, onPrint }) => {
 
             {pedidosFiltrados.length > 0 ? (
                 pedidosFiltrados.map(p => (
-                    <OrderCard 
-                        key={p.id} 
-                        p={p} 
-                        onToggleEstado={onToggleEstado} 
-                        onPrint={onPrint} 
-                    />
+                    <OrderCard key={p.id} p={p} onToggleEstado={onToggleEstado} onPrint={onPrint} />
                 ))
             ) : (
                 <div className="text-center py-24">
                     <div className="text-4xl mb-4 opacity-20">🥖</div>
-                    <p className="opacity-30 italic text-slate-500 text-sm font-medium">
-                        No hay registros en esta sección
-                    </p>
+                    <p className="opacity-30 italic text-slate-500 text-sm font-medium">No hay registros</p>
                 </div>
             )}
         </div>
