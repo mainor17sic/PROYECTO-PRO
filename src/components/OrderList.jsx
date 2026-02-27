@@ -7,7 +7,11 @@ const OrderCard = ({ p, onToggleEstado, onPrint }) => {
     const anticipo = p.anticipoValor || 0;
     const resta = total - anticipo;
 
-    // Función para editar anticipo con PIN (Mantiene la seguridad)
+    // Cálculo de progreso de despacho
+    const totalProductos = p.items.length;
+    const entregadosCount = p.items.filter(it => it.entregadoIndividual).length;
+
+    // --- NUEVA FUNCIÓN PARA EDITAR ANTICIPO/RESTANTE ---
     const editarAnticipo = () => {
         const pass = prompt("PIN de seguridad para modificar saldos:");
         if (pass === "00") {
@@ -16,6 +20,7 @@ const OrderCard = ({ p, onToggleEstado, onPrint }) => {
             if (nuevoAnticipo !== null && !isNaN(nuevoAnticipo)) {
                 const valorNum = parseFloat(nuevoAnticipo);
                 
+                // Determinamos el nuevo estado de pago automáticamente
                 let nuevoEstado = 'anticipo';
                 let estaPagado = false;
 
@@ -33,6 +38,7 @@ const OrderCard = ({ p, onToggleEstado, onPrint }) => {
                     pagado: estaPagado
                 });
 
+                // Efecto de confeti si se completa el pago al editar
                 if (estaPagado && window.confetti) {
                     window.confetti({ particleCount: 100, spread: 70, origin: { y: 0.8 } });
                 }
@@ -59,6 +65,12 @@ const OrderCard = ({ p, onToggleEstado, onPrint }) => {
         }
     };
 
+    const toggleProductoEntregado = (index) => {
+        const nuevosItems = [...p.items];
+        nuevosItems[index].entregadoIndividual = !nuevosItems[index].entregadoIndividual;
+        db.collection("pedidos").doc(p.id).update({ items: nuevosItems });
+    };
+
     return (
         <div className="bg-white rounded-[2.5rem] p-7 shadow-sm border border-slate-100 relative mb-6 view-transition">
             
@@ -77,7 +89,7 @@ const OrderCard = ({ p, onToggleEstado, onPrint }) => {
                         </span>
                     </div>
 
-                    <h3 className="text-xl font-serif italic text-slate-800 tracking-tight leading-none uppercase">
+                    <h3 className="text-xl font-serif italic text-slate-800 tracking-tight leading-none">
                         {p.cliente}
                     </h3>
 
@@ -97,67 +109,72 @@ const OrderCard = ({ p, onToggleEstado, onPrint }) => {
                 </div>
 
                 <div className="flex flex-col gap-2">
-                    <button onClick={() => onPrint(p)} className="bg-slate-900 text-white w-9 h-9 rounded-full flex items-center justify-center shadow-lg">
+                    <button onClick={() => onPrint(p)} className="bg-slate-900 text-white w-9 h-9 rounded-full flex items-center justify-center tap-soft shadow-lg">
                         <i className="fa-solid fa-print text-[10px]"></i>
                     </button>
-                    <button onClick={eliminarPedido} className="bg-red-50 text-red-400 w-9 h-9 rounded-full flex items-center justify-center border border-red-100">
+                    <button onClick={eliminarPedido} className="bg-red-50 text-red-400 w-9 h-9 rounded-full flex items-center justify-center tap-soft border border-red-100">
                         <i className="fa-solid fa-trash text-[10px]"></i>
                     </button>
                 </div>
             </div>
 
-            {/* LISTA DE PRODUCTOS - SOLO VISUALIZACIÓN */}
+            {/* LISTA DE PRODUCTOS */}
             <div className="space-y-3 mb-4 bg-slate-50/80 p-5 rounded-[2rem] border border-slate-100">
-                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Productos del Pedido</p>
-                
-                {p.items.map((it, i) => (
-                    <div key={i} className="flex justify-between items-center bg-white p-3 rounded-2xl shadow-sm border border-slate-100">
-                        <div className="flex items-center gap-4">
-                            {/* CANTIDAD GIGANTE VISIBLE */}
-                            <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center shadow-sm">
-                                <span className="text-2xl font-black text-white">{it.cantidad}</span>
-                            </div>
+                <div className="flex justify-between items-center mb-2 px-1">
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Control de despacho</p>
+                    <span className="text-[8px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md italic">
+                        {entregadosCount} de {totalProductos} listos
+                    </span>
+                </div>
 
+                {p.items.map((it, i) => (
+                    <div key={i} className={`flex justify-between items-center p-2 rounded-2xl transition-all ${it.entregadoIndividual ? 'bg-emerald-50/50' : 'bg-white shadow-sm'}`}>
+                        <div className="flex items-center gap-3">
+                            <button 
+                                onClick={() => toggleProductoEntregado(i)}
+                                className={`w-7 h-7 rounded-full flex items-center justify-center border-2 transition-all shadow-sm ${
+                                    it.entregadoIndividual 
+                                    ? 'bg-emerald-500 border-emerald-500 text-white' 
+                                    : 'border-slate-100 text-transparent bg-white'
+                                }`}
+                            >
+                                <i className="fa-solid fa-check text-[10px]"></i>
+                            </button>
                             <div className="flex flex-col">
-                                <span className="text-xs font-black text-slate-700 uppercase tracking-tight leading-tight">
-                                    {it.nombre}
+                                <span className={`text-[11px] font-black uppercase tracking-tight leading-none ${it.entregadoIndividual ? 'line-through text-slate-400' : 'text-slate-700'}`}>
+                                    <span className="text-blue-600 mr-1">{it.cantidad}x</span> {it.nombre}
                                 </span>
-                                <span className="text-[9px] font-bold text-slate-400 uppercase">
-                                    Precio Unitario: Q{it.precio.toFixed(2)}
-                                </span>
+                                <span className="text-[8px] font-bold text-slate-300">Q{(it.cantidad * it.precio).toFixed(2)}</span>
                             </div>
                         </div>
-                        <span className="text-[10px] font-black text-slate-800 bg-slate-50 px-2 py-1 rounded-lg">
-                            Q{(it.cantidad * it.precio).toFixed(2)}
-                        </span>
                     </div>
                 ))}
             </div>
 
-            {/* RESUMEN FINANCIERO EDITABLE */}
+            {/* RESUMEN FINANCIERO EDITABLE AL TOCAR */}
             <div 
                 onClick={editarAnticipo}
                 className="flex justify-between items-center px-6 py-4 mb-6 bg-slate-900 rounded-[2rem] text-white shadow-xl relative overflow-hidden cursor-pointer active:scale-95 transition-transform"
             >
                 <div className="absolute top-0 right-0 w-20 h-full bg-white/5 skew-x-12 translate-x-10"></div>
-                
+
                 <div className="relative">
-                    <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Total</p>
+                    <p className="text-[8px] font-black text-slate-400 uppercase leading-none mb-1">Total</p>
                     <p className="text-lg font-black leading-none">Q{total.toFixed(2)}</p>
                 </div>
 
                 {p.estadoPago === 'anticipo' && (
                     <div className="text-center relative">
-                        <p className="text-[8px] font-black text-orange-400 uppercase mb-1 italic">Abonó ✎</p>
-                        <p className="text-lg font-black text-orange-200">Q{anticipo.toFixed(2)}</p>
+                        <p className="text-[8px] font-black text-orange-400 uppercase leading-none mb-1">Abonó <i className="fa-solid fa-pencil text-[6px] ml-1"></i></p>
+                        <p className="text-lg font-black leading-none text-orange-200">Q{anticipo.toFixed(2)}</p>
                     </div>
                 )}
 
                 <div className="text-right relative">
-                    <p className="text-[8px] font-black text-blue-400 uppercase mb-1">
-                        {p.estadoPago === 'pagado' ? 'Saldo' : 'Falta cobrar'} ✎
+                    <p className="text-[8px] font-black text-blue-400 uppercase leading-none mb-1">
+                        {p.estadoPago === 'pagado' ? 'Saldo' : 'Falta cobrar'} <i className="fa-solid fa-pencil text-[6px] ml-1"></i>
                     </p>
-                    <p className={`text-lg font-black ${p.estadoPago === 'pagado' ? 'text-emerald-400' : 'text-blue-200'}`}>
+                    <p className={`text-lg font-black leading-none ${p.estadoPago === 'pagado' ? 'text-emerald-400' : 'text-blue-200'}`}>
                         Q{resta.toFixed(2)}
                     </p>
                 </div>
@@ -167,15 +184,15 @@ const OrderCard = ({ p, onToggleEstado, onPrint }) => {
             <div className="flex gap-3">
                 <button 
                     onClick={() => onToggleEstado(p.id, 'entregado', p.entregado)} 
-                    className={`flex-[2] py-4 rounded-2xl text-[9px] font-black uppercase tracking-[0.2em] transition-all ${
+                    className={`flex-[2] py-4 rounded-2xl text-[9px] font-black uppercase tracking-[0.2em] tap-soft transition-all ${
                         p.entregado ? 'bg-emerald-500 text-white shadow-md shadow-emerald-100' : 'bg-slate-100 text-slate-400'
                     }`}
                 >
-                    {p.entregado ? 'Pedido Entregado ✓' : 'Marcar Entrega'}
+                    {p.entregado ? 'Pedido Entregado ✓' : 'Marcar Entrega Total'}
                 </button>
                 <button 
                     onClick={() => onToggleEstado(p.id, 'pagado', p.pagado)} 
-                    className={`flex-1 rounded-2xl border-2 transition-all flex items-center justify-center ${
+                    className={`flex-1 rounded-2xl tap-soft border-2 transition-all flex items-center justify-center ${
                         p.pagado ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-slate-100 text-slate-300'
                     }`}
                 >
@@ -186,4 +203,42 @@ const OrderCard = ({ p, onToggleEstado, onPrint }) => {
     );
 };
 
-export default OrderCard;
+// ... (OrderList se mantiene igual que tu código original)
+const OrderList = ({ pedidos, view, searchTerm, onToggleEstado, onPrint }) => {
+    const pedidosFiltrados = pedidos
+        .filter(p => view === 'agenda' ? !p.entregado : p.entregado)
+        .filter(p => p.cliente.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    return (
+        <div className="space-y-4 px-2">
+            <div className="flex items-center justify-between mb-6">
+                <div>
+                    <h2 className="text-2xl font-serif italic text-slate-800 tracking-tight leading-none">
+                        {view === 'agenda' ? 'Pedidos en Curso' : 'Entregas Realizadas'}
+                    </h2>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">
+                        {pedidosFiltrados.length} pedidos encontrados
+                    </p>
+                </div>
+                <div className="flex flex-col items-end">
+                    <span className="text-[8px] font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full uppercase tracking-widest mb-1">
+                        {view === 'agenda' ? 'Producción' : 'Archivo'}
+                    </span>
+                </div>
+            </div>
+
+            {pedidosFiltrados.length > 0 ? (
+                pedidosFiltrados.map(p => (
+                    <OrderCard key={p.id} p={p} onToggleEstado={onToggleEstado} onPrint={onPrint} />
+                ))
+            ) : (
+                <div className="text-center py-24">
+                    <div className="text-4xl mb-4 opacity-20">🥖</div>
+                    <p className="opacity-30 italic text-slate-500 text-sm font-medium">No hay registros</p>
+                </div>
+            )}
+        </div>
+    );
+};
+
+export default OrderList;
