@@ -118,38 +118,41 @@ const OrderCard = ({ p, onToggleEstado, onPrint }) => {
                 </div>
             </div>
 
-            {/* LISTA DE PRODUCTOS */}
-            <div className="space-y-3 mb-4 bg-slate-50/80 p-5 rounded-[2rem] border border-slate-100">
-                <div className="flex justify-between items-center mb-2 px-1">
-                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Control de despacho</p>
-                    <span className="text-[8px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md italic">
-                        {entregadosCount} de {totalProductos} listos
+            {/* LISTA DE PRODUCTOS - SOLO VISUALIZACIÓN */}
+<div className="space-y-3 mb-4 bg-slate-50/80 p-5 rounded-[2rem] border border-slate-100">
+    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Productos del Pedido</p>
+    
+    {p.items.map((it, i) => (
+        <div key={i} className="flex justify-between items-center bg-white p-3 rounded-2xl shadow-sm border border-slate-100">
+            <div className="flex items-center gap-4">
+                
+                {/* CANTIDAD SUPER VISIBLE - SIN "X" */}
+                <div className="min-w-[64px] h-16 rounded-2xl bg-blue-700 flex items-center justify-center shadow-md border-b-4 border-blue-900">
+                    <span className="text-4xl font-black text-white tracking-tighter">
+                        {it.cantidad}
                     </span>
                 </div>
 
-                {p.items.map((it, i) => (
-                    <div key={i} className={`flex justify-between items-center p-2 rounded-2xl transition-all ${it.entregadoIndividual ? 'bg-emerald-50/50' : 'bg-white shadow-sm'}`}>
-                        <div className="flex items-center gap-3">
-                            <button 
-                                onClick={() => toggleProductoEntregado(i)}
-                                className={`w-7 h-7 rounded-full flex items-center justify-center border-2 transition-all shadow-sm ${
-                                    it.entregadoIndividual 
-                                    ? 'bg-emerald-500 border-emerald-500 text-white' 
-                                    : 'border-slate-100 text-transparent bg-white'
-                                }`}
-                            >
-                                <i className="fa-solid fa-check text-[10px]"></i>
-                            </button>
-                            <div className="flex flex-col">
-                                <span className={`text-[11px] font-black uppercase tracking-tight leading-none ${it.entregadoIndividual ? 'line-through text-slate-400' : 'text-slate-700'}`}>
-                                    <span className="text-blue-600 mr-1">{it.cantidad}x</span> {it.nombre}
-                                </span>
-                                <span className="text-[8px] font-bold text-slate-300">Q{(it.cantidad * it.precio).toFixed(2)}</span>
-                            </div>
-                        </div>
-                    </div>
-                ))}
+                <div className="flex flex-col">
+                    <span className="text-sm font-black text-slate-800 uppercase tracking-tight leading-tight">
+                        {it.nombre}
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">
+                        Precio Unitario: Q{it.precio.toFixed(2)}
+                    </span>
+                </div>
             </div>
+
+            {/* TOTAL POR FILA */}
+            <div className="text-right">
+                <p className="text-[8px] font-black text-slate-400 uppercase">Subtotal</p>
+                <span className="text-xs font-black text-slate-900">
+                    Q{(it.cantidad * it.precio).toFixed(2)}
+                </span>
+            </div>
+        </div>
+    ))}
+</div>
 
             {/* RESUMEN FINANCIERO EDITABLE AL TOCAR */}
             <div 
