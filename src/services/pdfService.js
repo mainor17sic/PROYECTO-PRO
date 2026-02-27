@@ -6,12 +6,17 @@ export const generarRecibo = (p) => {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit: 'mm', format: 'a4' });
     
+    // Función interna para limpiar emojis y caracteres extraños
+    const limpiarTexto = (texto) => {
+        return texto.replace(/[^\x00-\x7F]/g, "").trim();
+    };
+
     // --- 1. FONDO ELEGANTE ---
     doc.setFillColor(252, 251, 247); 
     doc.rect(0, 0, 210, 297, 'F');
 
     // --- 2. MARCA DE AGUA ---
-    doc.setTextColor(240, 235, 220); 
+    doc.setTextColor(240, 235, 220);
     doc.setFontSize(100);
     doc.setFont("helvetica", "bold");
     doc.text("PAN", 105, 150, { align: "center", angle: 45 });
@@ -21,14 +26,14 @@ export const generarRecibo = (p) => {
     doc.setLineWidth(0.5);
     doc.rect(5, 5, 200, 287);
 
-    // --- 4. ENCABEZADO AZUL PROFESIONAL ---
-    doc.setFillColor(37, 99, 235); 
+    // --- 4. ENCABEZADO AZUL ---
+    doc.setFillColor(37, 99, 235);
     doc.rect(0, 0, 210, 45, 'F');
     
     doc.setTextColor(255, 255, 255);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(28);
-    doc.text("PANADERÍA MARVIN", 105, 25, { align: "center" });
+    doc.text("PANADERIA MARVIN", 105, 25, { align: "center" });
     
     doc.setFontSize(11);
     doc.setFont("helvetica", "italic");
@@ -50,7 +55,7 @@ export const generarRecibo = (p) => {
     doc.text(`CLIENTE:`, 20, 72);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(15, 23, 42);
-    doc.text(`${p.cliente.toUpperCase()}`, 45, 72);
+    doc.text(`${limpiarTexto(p.cliente).toUpperCase()}`, 45, 72);
 
     doc.setFont("helvetica", "normal");
     doc.setTextColor(71, 85, 105);
@@ -59,7 +64,7 @@ export const generarRecibo = (p) => {
 
     doc.text(`NOTA:`, 20, 84);
     doc.setFont("helvetica", "italic");
-    doc.text(`${p.nota || "Sin observaciones adicionales"}`, 45, 84);
+    doc.text(`${limpiarTexto(p.nota) || "Sin observaciones"}`, 45, 84);
 
     // --- 6. TABLA DE PRODUCTOS ---
     let y = 100;
@@ -86,7 +91,8 @@ export const generarRecibo = (p) => {
 
         doc.setFont("helvetica", "normal");
         doc.setTextColor(51, 65, 85);
-        doc.text(`${it.nombre}`, 25, y);
+        // Aquí aplicamos la limpieza al nombre del producto
+        doc.text(`${limpiarTexto(it.nombre)}`, 25, y);
         doc.text(`${it.cantidad}`, 105, y, { align: "center" });
         doc.text(`Q${it.precio.toFixed(2)}`, 140, y);
         doc.setFont("helvetica", "bold");
@@ -97,7 +103,7 @@ export const generarRecibo = (p) => {
     // --- 7. RECUADRO DE TOTAL ---
     y += 10;
     doc.setFillColor(37, 99, 235);
-    doc.rect(130, y, 60, 15, 'F'); 
+    doc.rect(130, y, 60, 15, 'F');
     
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(14);
@@ -108,10 +114,9 @@ export const generarRecibo = (p) => {
     doc.setFontSize(9);
     doc.setFont("helvetica", "italic");
     doc.setTextColor(148, 163, 184);
-    doc.text("Este documento es un comprobante de venta de Panadería Marvin.", 105, 275, { align: "center" });
+    doc.text("Este documento es un comprobante de venta de Panaderia Marvin.", 105, 275, { align: "center" });
     doc.setFont("helvetica", "bold");
     doc.text("¡Gracias por su preferencia!", 105, 280, { align: "center" });
 
-    // Descarga automática
-    doc.save(`Recibo_premium_${p.cliente.replace(/\s+/g, '_')}.pdf`);
+    doc.save(`Recibo_${p.cliente.replace(/\s+/g, '_')}.pdf`);
 };
