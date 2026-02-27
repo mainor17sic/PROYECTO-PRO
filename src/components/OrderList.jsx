@@ -7,6 +7,35 @@ const OrderCard = ({ p, onToggleEstado, onPrint }) => {
     const anticipo = p.anticipoValor || 0;
     const resta = total - anticipo;
 
+    // --- NUEVA LÓGICA DE PAGO TOTAL ---
+    const manejarPagoBilletera = () => {
+        if (p.pagado) {
+            // Si ya estaba pagado, lo regresamos a pendiente (por si hubo error)
+            db.collection("pedidos").doc(p.id).update({ 
+                pagado: false, 
+                estadoPago: 'pendiente',
+                anticipoValor: 0 
+            });
+        } else {
+            // Efecto visual de éxito
+            if (window.confetti) {
+                window.confetti({
+                    particleCount: 100,
+                    spread: 70,
+                    origin: { y: 0.8 },
+                    colors: ['#10b981', '#3b82f6']
+                });
+            }
+
+            // Actualizamos en Firebase para que sea "Cancelado Total"
+            db.collection("pedidos").doc(p.id).update({ 
+                pagado: true, 
+                estadoPago: 'pagado',
+                anticipoValor: total // El anticipo ahora es el total, por lo tanto resta Q0
+            });
+        }
+    };
+
     const eliminarPedido = () => {
         const pass = prompt("PIN para ELIMINAR:");
         if (pass === "00" && confirm("¿Eliminar registro?")) {
@@ -33,7 +62,6 @@ const OrderCard = ({ p, onToggleEstado, onPrint }) => {
                         <span className="text-[7px] font-black bg-slate-900 text-white px-2 py-0.5 rounded-full uppercase tracking-tighter">
                             #{p.correlativo}
                         </span>
-                        {/* Indicador de Estado de Pago Dinámico */}
                         <span className={`text-[7px] font-black px-2 py-0.5 rounded-full uppercase ${
                             p.estadoPago === 'pagado' ? 'bg-emerald-100 text-emerald-600' : 
                             p.estadoPago === 'anticipo' ? 'bg-orange-100 text-orange-600' : 'bg-red-50 text-red-400'
@@ -45,7 +73,6 @@ const OrderCard = ({ p, onToggleEstado, onPrint }) => {
                         {p.cliente}
                     </h3>
                     
-                    {/* Nueva: Fecha y Hora del pedido */}
                     <p className="text-[8px] font-black text-slate-300 uppercase mt-1 tracking-widest">
                         <i className="fa-regular fa-clock mr-1"></i> {p.fecha || p.fechaRegistro}
                     </p>
@@ -86,7 +113,7 @@ const OrderCard = ({ p, onToggleEstado, onPrint }) => {
                 ))}
             </div>
 
-            {/* --- NUEVO: RESUMEN DE CUENTA --- */}
+            {/* RESUMEN DE CUENTA */}
             <div className="flex justify-between items-center px-5 py-3 mb-6 bg-blue-50/30 rounded-2xl border border-dashed border-blue-100">
                 <div>
                     <p className="text-[8px] font-black text-slate-400 uppercase">Total</p>
@@ -110,6 +137,12 @@ const OrderCard = ({ p, onToggleEstado, onPrint }) => {
                         <p className="text-sm font-black text-red-600">Q{total.toFixed(2)}</p>
                     </div>
                 )}
+                {p.estadoPago === 'pagado' && (
+                    <div className="text-right">
+                        <p className="text-[8px] font-black text-emerald-500 uppercase">Estado</p>
+                        <p className="text-sm font-black text-emerald-600">CANCELADO TOTAL</p>
+                    </div>
+                )}
             </div>
 
             {/* CONTROLES DE ESTADO */}
@@ -122,10 +155,12 @@ const OrderCard = ({ p, onToggleEstado, onPrint }) => {
                 >
                     {p.entregado ? 'Pedido Entregado' : 'Marcar Entrega'}
                 </button>
+                
+                {/* Botón de Billetera con la nueva lógica de pago total */}
                 <button 
-                    onClick={() => onToggleEstado(p.id, 'pagado', p.pagado)} 
+                    onClick={manejarPagoBilletera} 
                     className={`flex-1 rounded-2xl tap-soft border-2 transition-all flex items-center justify-center ${
-                        p.pagado ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-slate-100 text-slate-300'
+                        p.pagado ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-100' : 'bg-white border-slate-100 text-slate-300'
                     }`}
                 >
                     <i className={`fa-solid ${p.pagado ? 'fa-check-double' : 'fa-wallet'} text-xs`}></i>
@@ -135,34 +170,4 @@ const OrderCard = ({ p, onToggleEstado, onPrint }) => {
     );
 };
 
-// OrderList permanece igual, ya que solo es el contenedor
-const OrderList = ({ pedidos, view, searchTerm, onToggleEstado, onPrint }) => {
-    const pedidosFiltrados = pedidos
-        .filter(p => view === 'agenda' ? !p.entregado : p.entregado)
-        .filter(p => p.cliente.toLowerCase().includes(searchTerm.toLowerCase()));
-
-    return (
-        <div className="space-y-4">
-            <div className="flex items-center justify-between ml-2 mb-6">
-                <h2 className="text-xl font-serif italic text-slate-800 tracking-tight">
-                    {view === 'agenda' ? 'Pedidos en Curso' : 'Entregas Realizadas'}
-                </h2>
-                <span className="text-[9px] font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full uppercase tracking-widest">
-                    {view === 'agenda' ? 'Producción' : 'Archivo'}
-                </span>
-            </div>
-
-            {pedidosFiltrados.length > 0 ? (
-                pedidosFiltrados.map(p => (
-                    <OrderCard key={p.id} p={p} onToggleEstado={onToggleEstado} onPrint={onPrint} />
-                ))
-            ) : (
-                <div className="text-center py-20 opacity-30 italic text-slate-500">
-                    No se encontraron pedidos
-                </div>
-            )}
-        </div>
-    );
-};
-
-export default OrderList;
+export default OrderCard;
