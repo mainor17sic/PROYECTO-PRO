@@ -2,6 +2,15 @@ import React from 'react';
 import { db } from '../services/firebase';
 
 const OrderCard = ({ p, onToggleEstado, onPrint }) => {
+    // Cálculo de valores financieros
+    const total = p.total || 0;
+    const anticipo = p.anticipoValor || 0;
+    const resta = total - anticipo;
+
+    // Cálculo de progreso de despacho
+    const totalProductos = p.items.length;
+    const entregadosCount = p.items.filter(it => it.entregadoIndividual).length;
+
     const eliminarPedido = () => {
         const pass = prompt("PIN para ELIMINAR:");
         if (pass === "00" && confirm("¿Eliminar registro?")) {
@@ -19,8 +28,19 @@ const OrderCard = ({ p, onToggleEstado, onPrint }) => {
         }
     };
 
+    // Función para marcar un solo producto como entregado
+    const toggleProductoEntregado = (index) => {
+        const nuevosItems = [...p.items];
+        nuevosItems[index].entregadoIndividual = !nuevosItems[index].entregadoIndividual;
+        
+        db.collection("pedidos").doc(p.id).update({
+            items: nuevosItems
+        });
+    };
+
     return (
         <div className="bg-white rounded-[2.5rem] p-7 shadow-sm border border-slate-100 relative mb-6 view-transition">
+            
             {/* ENCABEZADO DE FICHA */}
             <div className="flex justify-between items-start mb-5">
                 <div className="flex-1">
@@ -28,16 +48,22 @@ const OrderCard = ({ p, onToggleEstado, onPrint }) => {
                         <span className="text-[7px] font-black bg-slate-900 text-white px-2 py-0.5 rounded-full uppercase tracking-tighter">
                             #{p.correlativo}
                         </span>
-                        {p.pagado && (
-                            <span className="text-[7px] font-black bg-emerald-100 text-emerald-600 px-2 py-0.5 rounded-full uppercase">
-                                Confirmado
-                            </span>
-                        )}
+                        <span className={`text-[7px] font-black px-2 py-0.5 rounded-full uppercase ${
+                            p.estadoPago === 'pagado' ? 'bg-emerald-100 text-emerald-600' : 
+                            p.estadoPago === 'anticipo' ? 'bg-orange-100 text-orange-600' : 'bg-red-50 text-red-400'
+                        }`}>
+                            {p.estadoPago === 'pagado' ? 'PAGADO TOTAL' : p.estadoPago === 'anticipo' ? 'CON ANTICIPO' : 'PENDIENTE PAGO'}
+                        </span>
                     </div>
+                    
                     <h3 className="text-xl font-serif italic text-slate-800 tracking-tight leading-none">
                         {p.cliente}
                     </h3>
-                    
+
+                    <p className="text-[8px] font-black text-slate-300 uppercase mt-1 tracking-widest flex items-center gap-1">
+                        <i className="fa-regular fa-clock text-[9px]"></i> {p.fecha || p.fechaRegistro}
+                    </p>
+
                     <div className="mt-3 flex items-center gap-2">
                         <div className="h-4 w-[2px] bg-blue-500 rounded-full"></div>
                         <p className="text-[10px] font-medium text-slate-400 italic">
@@ -48,7 +74,7 @@ const OrderCard = ({ p, onToggleEstado, onPrint }) => {
                         </button>
                     </div>
                 </div>
-                
+
                 <div className="flex flex-col gap-2">
                     <button onClick={() => onPrint(p)} className="bg-slate-900 text-white w-9 h-9 rounded-full flex items-center justify-center tap-soft shadow-lg">
                         <i className="fa-solid fa-print text-[10px]"></i>
@@ -59,28 +85,68 @@ const OrderCard = ({ p, onToggleEstado, onPrint }) => {
                 </div>
             </div>
 
-            {/* LISTA DE PRODUCTOS */}
-            <div className="space-y-3 mb-6 bg-slate-50/80 p-5 rounded-[2rem] border border-slate-100">
+            {/* LISTA DE PRODUCTOS CON CONTROL INDIVIDUAL */}
+            <div className="space-y-3 mb-4 bg-slate-50/80 p-5 rounded-[2rem] border border-slate-100">
+                <div className="flex justify-between items-center mb-2 px-1">
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Control de despacho</p>
+                    <span className="text-[8px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md italic">
+                        {entregadosCount} de {totalProductos} listos
+                    </span>
+                </div>
+
                 {p.items.map((it, i) => (
-                    <div key={i} className="flex justify-between items-center">
-                        <div className="flex items-center gap-4">
-                            <div className="flex flex-col items-center justify-center bg-white border border-blue-100 shadow-sm w-12 h-12 rounded-2xl">
-                                <span className="text-xl font-black text-blue-600 leading-none">{it.cantidad}</span>
-                                <span className="text-[7px] font-bold text-blue-300 uppercase tracking-tighter">Cant.</span>
-                            </div>
+                    <div key={i} className={`flex justify-between items-center p-2 rounded-2xl transition-all ${it.entregadoIndividual ? 'bg-emerald-50/50' : 'bg-white shadow-sm'}`}>
+                        <div className="flex items-center gap-3">
+                            <button 
+                                onClick={() => toggleProductoEntregado(i)}
+                                className={`w-7 h-7 rounded-full flex items-center justify-center border-2 transition-all shadow-sm ${
+                                    it.entregadoIndividual 
+                                    ? 'bg-emerald-500 border-emerald-500 text-white' 
+                                    : 'border-slate-100 text-transparent bg-white'
+                                }`}
+                            >
+                                <i className="fa-solid fa-check text-[10px]"></i>
+                            </button>
+
                             <div className="flex flex-col">
-                                <span className="text-[11px] font-black text-slate-700 uppercase tracking-tight">{it.nombre}</span>
-                                <span className="text-[9px] font-medium text-slate-400">Q{it.precio.toFixed(2)} c/u</span>
+                                <span className={`text-[11px] font-black uppercase tracking-tight leading-none ${it.entregadoIndividual ? 'line-through text-slate-400' : 'text-slate-700'}`}>
+                                    <span className="text-blue-600 mr-1">{it.cantidad}x</span> {it.nombre}
+                                </span>
+                                <span className="text-[8px] font-bold text-slate-300">Q{(it.cantidad * it.precio).toFixed(2)}</span>
                             </div>
-                        </div>
-                        <div className="text-right">
-                            <span className="text-[11px] font-black text-slate-800">Q{(it.cantidad * it.precio).toFixed(2)}</span>
                         </div>
                     </div>
                 ))}
             </div>
 
-            {/* CONTROLES DE ESTADO */}
+            {/* RESUMEN FINANCIERO */}
+            <div className="flex justify-between items-center px-6 py-4 mb-6 bg-slate-900 rounded-[2rem] text-white shadow-xl relative overflow-hidden">
+                {/* Decoración de fondo */}
+                <div className="absolute top-0 right-0 w-20 h-full bg-white/5 skew-x-12 translate-x-10"></div>
+                
+                <div className="relative">
+                    <p className="text-[8px] font-black text-slate-400 uppercase leading-none mb-1">Total</p>
+                    <p className="text-lg font-black leading-none">Q{total.toFixed(2)}</p>
+                </div>
+
+                {p.estadoPago === 'anticipo' && (
+                    <div className="text-center relative">
+                        <p className="text-[8px] font-black text-orange-400 uppercase leading-none mb-1">Abonó</p>
+                        <p className="text-lg font-black leading-none text-orange-200">Q{anticipo.toFixed(2)}</p>
+                    </div>
+                )}
+
+                <div className="text-right relative">
+                    <p className="text-[8px] font-black text-blue-400 uppercase leading-none mb-1">
+                        {p.estadoPago === 'pagado' ? 'Saldo' : 'Falta cobrar'}
+                    </p>
+                    <p className={`text-lg font-black leading-none ${p.estadoPago === 'pagado' ? 'text-emerald-400' : 'text-blue-200'}`}>
+                        Q{resta.toFixed(2)}
+                    </p>
+                </div>
+            </div>
+
+            {/* CONTROLES DE ESTADO GENERAL */}
             <div className="flex gap-3">
                 <button 
                     onClick={() => onToggleEstado(p.id, 'entregado', p.entregado)} 
@@ -88,7 +154,7 @@ const OrderCard = ({ p, onToggleEstado, onPrint }) => {
                         p.entregado ? 'bg-emerald-500 text-white shadow-md shadow-emerald-100' : 'bg-slate-100 text-slate-400'
                     }`}
                 >
-                    {p.entregado ? 'Pedido Entregado' : 'Marcar Entrega'}
+                    {p.entregado ? 'Pedido Entregado ✓' : 'Marcar Entrega Total'}
                 </button>
                 <button 
                     onClick={() => onToggleEstado(p.id, 'pagado', p.pagado)} 
@@ -104,20 +170,26 @@ const OrderCard = ({ p, onToggleEstado, onPrint }) => {
 };
 
 const OrderList = ({ pedidos, view, searchTerm, onToggleEstado, onPrint }) => {
-    // Filtrado por vista (Agenda vs Entregas) y por búsqueda
     const pedidosFiltrados = pedidos
         .filter(p => view === 'agenda' ? !p.entregado : p.entregado)
         .filter(p => p.cliente.toLowerCase().includes(searchTerm.toLowerCase()));
 
     return (
-        <div className="space-y-4">
-            <div className="flex items-center justify-between ml-2 mb-6">
-                <h2 className="text-xl font-serif italic text-slate-800 tracking-tight">
-                    {view === 'agenda' ? 'Pedidos en Curso' : 'Entregas Realizadas'}
-                </h2>
-                <span className="text-[9px] font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full uppercase tracking-widest">
-                    {view === 'agenda' ? 'Producción' : 'Archivo'}
-                </span>
+        <div className="space-y-4 px-2">
+            <div className="flex items-center justify-between mb-6">
+                <div>
+                    <h2 className="text-2xl font-serif italic text-slate-800 tracking-tight leading-none">
+                        {view === 'agenda' ? 'Pedidos en Curso' : 'Entregas Realizadas'}
+                    </h2>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">
+                        {pedidosFiltrados.length} pedidos encontrados
+                    </p>
+                </div>
+                <div className="flex flex-col items-end">
+                    <span className="text-[8px] font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full uppercase tracking-widest mb-1">
+                        {view === 'agenda' ? 'Producción' : 'Archivo'}
+                    </span>
+                </div>
             </div>
 
             {pedidosFiltrados.length > 0 ? (
@@ -130,8 +202,11 @@ const OrderList = ({ pedidos, view, searchTerm, onToggleEstado, onPrint }) => {
                     />
                 ))
             ) : (
-                <div className="text-center py-20 opacity-30 italic text-slate-500">
-                    No se encontraron pedidos
+                <div className="text-center py-24">
+                    <div className="text-4xl mb-4 opacity-20">🥖</div>
+                    <p className="opacity-30 italic text-slate-500 text-sm font-medium">
+                        No hay registros en esta sección
+                    </p>
                 </div>
             )}
         </div>
