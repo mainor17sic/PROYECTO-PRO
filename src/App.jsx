@@ -40,21 +40,21 @@ function App() {
     // ============================================
     useEffect(() => {
         const configurarNotificaciones = () => {
-            // 1. Verificar que el bridge de Median exista
-            if (typeof Median === "undefined") {
-                console.warn("⚠️ Median no está definido. ¿App nativa?");
+            // 1. Verificar que el bridge de Median exista (usando window.median)
+            if (typeof window.median === "undefined") {
+                console.warn("⚠️ window.median no está definido. ¿Estás en el navegador o en la app nativa?");
                 return;
             }
-            if (!Median.firebaseMessaging) {
-                console.warn("⚠️ Median.firebaseMessaging no existe. Plugin FCM no activado.");
+            if (!window.median.firebaseMessaging) {
+                console.warn("⚠️ window.median.firebaseMessaging no existe. El plugin FCM no está activado en Median.");
                 return;
             }
 
-            console.log("✅ Bridge Median detectado");
+            console.log("✅ Bridge de Median detectado. Configurando notificaciones...");
 
             // 2. Escuchar taps en notificaciones (deep link)
-            if (Median.firebaseMessaging.onNotificationTap) {
-                Median.firebaseMessaging.onNotificationTap((payload) => {
+            if (window.median.firebaseMessaging.onNotificationTap) {
+                window.median.firebaseMessaging.onNotificationTap((payload) => {
                     console.log("🔔 Notificación tocada:", payload);
                     const pedidoId = payload && payload.data ? payload.data.pedidoId : null;
                     if (pedidoId) {
@@ -64,57 +64,51 @@ function App() {
             }
 
             // 3. Pedir permiso y suscribir al tema
-            const suscribir = () => {
-                // 3a. Solicitar permiso de notificaciones
-                Median.firebaseMessaging.requestPermission({
-                    callback: function (result) {
-                        console.log("Permiso solicitado:", result);
+            window.median.firebaseMessaging.requestPermission({
+                callback: function (result) {
+                    console.log("Permiso solicitado:", result);
 
-                        if (result && result.granted) {
-                            console.log("✅ Permiso concedido");
+                    if (result && result.granted) {
+                        console.log("✅ Permiso concedido");
 
-                            // 3b. Obtener token (para diagnóstico / Plan B)
-                            Median.firebaseMessaging.getToken({
-                                callback: function (tokenResult) {
-                                    if (tokenResult && tokenResult.token) {
-                                        console.log("📱 Token FCM:", tokenResult.token);
-                                    } else {
-                                        console.warn("⚠️ No se pudo obtener token:", tokenResult);
-                                    }
+                        // 3a. Obtener token (para diagnóstico / Plan B)
+                        window.median.firebaseMessaging.getToken({
+                            callback: function (tokenResult) {
+                                if (tokenResult && tokenResult.token) {
+                                    console.log("📱 Token FCM:", tokenResult.token);
+                                } else {
+                                    console.warn("⚠️ No se pudo obtener token:", tokenResult);
                                 }
-                            });
-
-                            // 3c. Suscribir al tema "nuevos-pedidos"
-                            Median.firebaseMessaging.subscribeToTopic({
-                                topic: "nuevos-pedidos",
-                                callback: function (subResult) {
-                                    console.log("Resultado subscribeToTopic:", subResult);
-
-                                    if (subResult && subResult.success) {
-                                        console.log("✅ Suscrito al tema nuevos-pedidos");
-                                    } else {
-                                        console.error("❌ Error al suscribir:", subResult);
-                                    }
-                                }
-                            });
-
-                            // 3d. Verificar temas suscritos (diagnóstico)
-                            if (Median.firebaseMessaging.getSubscribedTopics) {
-                                Median.firebaseMessaging.getSubscribedTopics({
-                                    callback: function (topicsResult) {
-                                        console.log("📋 Temas suscritos:", topicsResult);
-                                    }
-                                });
                             }
-                        } else {
-                            console.warn("⚠️ Permiso de notificaciones denegado:", result);
-                        }
-                    }
-                });
-            };
+                        });
 
-            // Ejecutar la suscripción
-            suscribir();
+                        // 3b. Suscribir al tema "nuevos-pedidos"
+                        window.median.firebaseMessaging.subscribeToTopic({
+                            topic: "nuevos-pedidos", // 👈 IMPORTANTE: Este nombre debe coincidir con tu Cloud Function
+                            callback: function (subResult) {
+                                console.log("Resultado subscribeToTopic:", subResult);
+
+                                if (subResult && subResult.success) {
+                                    console.log("🎉 ¡Suscrito al tema nuevos-pedidos! Recibirá notificaciones masivas.");
+                                } else {
+                                    console.error("❌ Error al suscribir:", subResult);
+                                }
+                            }
+                        });
+
+                        // 3c. Verificar temas suscritos (diagnóstico)
+                        if (window.median.firebaseMessaging.getSubscribedTopics) {
+                            window.median.firebaseMessaging.getSubscribedTopics({
+                                callback: function (topicsResult) {
+                                    console.log("📋 Temas suscritos actualmente:", topicsResult);
+                                }
+                            });
+                        }
+                    } else {
+                        console.warn("⚠️ Permiso de notificaciones denegado:", result);
+                    }
+                }
+            });
         };
 
         configurarNotificaciones();
