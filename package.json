@@ -13,8 +13,7 @@
     "react-dom": "^18.2.0",
     "firebase": "^9.15.0",
     "jspdf": "^2.5.1",
-    "canvas-confetti": "^1.6.0",
-    "react-onesignal": "^3.0.6"
+    "canvas-confetti": "^1.6.0"
   },
   "devDependencies": {
     "@types/react": "^18.0.27",
