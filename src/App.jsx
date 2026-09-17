@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import OneSignal from 'react-onesignal'; // 👈 1. Importamos OneSignal
 import { db } from './services/firebase';
 import { generarRecibo } from './services/pdfService';
+// Importaremos estos componentes en los siguientes pasos
 import './App.css';
 import Navbar from './components/Navbar';
 import OrderForm from './components/OrderForm';
@@ -32,25 +32,6 @@ function App() {
                 setPedidos(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
             });
         return () => unsubscribe();
-    }, []);
-
-    // --- 🔔 2. IMPLEMENTO DE ONESIGNAL ---
-    useEffect(() => {
-        const initOneSignal = async () => {
-            try {
-                await OneSignal.init({
-                    appId: "50e07737-1afa-4a02-b08a-244065c9a69e",
-                    allowLocalhostAsSecureOrigin: true, // Para pruebas
-                });
-                
-                // Pedir permiso al usuario para enviar notificaciones
-                await OneSignal.Notifications.requestPermission();
-                console.log("OneSignal inicializado correctamente");
-            } catch (error) {
-                console.error("Error al inicializar OneSignal:", error);
-            }
-        };
-        initOneSignal();
     }, []);
 
     // Función global para cambiar estados (Pagado/Entregado)
@@ -95,6 +76,7 @@ function App() {
                     <Summary pedidos={pedidos} />
                 )}
             </div>
+
             <SearchFab 
                 view={view} 
                 showSearchBox={showSearchBox} 
