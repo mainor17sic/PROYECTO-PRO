@@ -23,7 +23,9 @@ function App() {
     const [searchTerm, setSearchTerm] = useState("");
     const [showSearchBox, setShowSearchBox] = useState(false);
 
-    // Suscripción a Firebase en tiempo real
+    // ============================================
+    // Suscripción a Firestore en tiempo real
+    // ============================================
     useEffect(() => {
         const unsubscribe = db.collection("pedidos")
             .orderBy("timestamp", "desc")
@@ -33,51 +35,94 @@ function App() {
         return () => unsubscribe();
     }, []);
 
-    // 🔔 Suscripción automática a notificaciones push
+    // ============================================
+    // 🔔 Notificaciones Push con Median + FCM
+    // ============================================
     useEffect(() => {
-        const configurarNotificaciones = async () => {
-            // Esperar a que el bridge de Median esté disponible
-            if (typeof Median === "undefined" || !Median.firebaseMessaging) {
-                console.warn("Median bridge no disponible (¿estás en la app nativa?)");
+        const configurarNotificaciones = () => {
+            // 1. Verificar que el bridge de Median exista
+            if (typeof Median === "undefined") {
+                console.warn("⚠️ Median no está definido. ¿App nativa?");
+                return;
+            }
+            if (!Median.firebaseMessaging) {
+                console.warn("⚠️ Median.firebaseMessaging no existe. Plugin FCM no activado.");
                 return;
             }
 
-            try {
-                // 1. Verificar estado del permiso
-                const permiso = await Median.firebaseMessaging.getPermissionStatus();
-                console.log("Permiso actual:", permiso);
+            console.log("✅ Bridge Median detectado");
 
-                // 2. Pedir permiso si no está concedido
-                if (permiso !== "granted") {
-                    const nuevoPermiso = await Median.firebaseMessaging.requestPermission();
-                    if (nuevoPermiso !== "granted") {
-                        console.log("Usuario denegó las notificaciones");
-                        return;
-                    }
-                }
-
-                // 3. Suscribir al tema de nuevos pedidos
-                await Median.firebaseMessaging.subscribeToTopic("nuevos-pedidos");
-                console.log("✅ Suscrito al tema: nuevos-pedidos");
-
-                // 4. Escuchar cuando el usuario toca una notificación
+            // 2. Escuchar taps en notificaciones (deep link)
+            if (Median.firebaseMessaging.onNotificationTap) {
                 Median.firebaseMessaging.onNotificationTap((payload) => {
                     console.log("🔔 Notificación tocada:", payload);
-                    const pedidoId = payload?.data?.pedidoId;
+                    const pedidoId = payload && payload.data ? payload.data.pedidoId : null;
                     if (pedidoId) {
                         setView("agenda");
                     }
                 });
-
-            } catch (error) {
-                console.error("❌ Error configurando notificaciones:", error);
             }
+
+            // 3. Pedir permiso y suscribir al tema
+            const suscribir = () => {
+                // 3a. Solicitar permiso de notificaciones
+                Median.firebaseMessaging.requestPermission({
+                    callback: function (result) {
+                        console.log("Permiso solicitado:", result);
+
+                        if (result && result.granted) {
+                            console.log("✅ Permiso concedido");
+
+                            // 3b. Obtener token (para diagnóstico / Plan B)
+                            Median.firebaseMessaging.getToken({
+                                callback: function (tokenResult) {
+                                    if (tokenResult && tokenResult.token) {
+                                        console.log("📱 Token FCM:", tokenResult.token);
+                                    } else {
+                                        console.warn("⚠️ No se pudo obtener token:", tokenResult);
+                                    }
+                                }
+                            });
+
+                            // 3c. Suscribir al tema "nuevos-pedidos"
+                            Median.firebaseMessaging.subscribeToTopic({
+                                topic: "nuevos-pedidos",
+                                callback: function (subResult) {
+                                    console.log("Resultado subscribeToTopic:", subResult);
+
+                                    if (subResult && subResult.success) {
+                                        console.log("✅ Suscrito al tema nuevos-pedidos");
+                                    } else {
+                                        console.error("❌ Error al suscribir:", subResult);
+                                    }
+                                }
+                            });
+
+                            // 3d. Verificar temas suscritos (diagnóstico)
+                            if (Median.firebaseMessaging.getSubscribedTopics) {
+                                Median.firebaseMessaging.getSubscribedTopics({
+                                    callback: function (topicsResult) {
+                                        console.log("📋 Temas suscritos:", topicsResult);
+                                    }
+                                });
+                            }
+                        } else {
+                            console.warn("⚠️ Permiso de notificaciones denegado:", result);
+                        }
+                    }
+                });
+            };
+
+            // Ejecutar la suscripción
+            suscribir();
         };
 
         configurarNotificaciones();
     }, []);
 
-    // Función global para cambiar estados (Pagado/Entregado)
+    // ============================================
+    // Cambiar estado de pedidos (Pagado / Entregado)
+    // ============================================
     const toggleEstado = (id, campo, valor) => {
         const pass = prompt("PIN:");
         if (pass === "00") {
@@ -99,16 +144,16 @@ function App() {
 
             <div className="pt-24 px-4 view-transition">
                 {view === 'crear' && (
-                    <OrderForm 
-                        productos={PRODUCTOS_MENU} 
-                        onSuccess={() => setView('agenda')} 
+                    <OrderForm
+                        productos={PRODUCTOS_MENU}
+                        onSuccess={() => setView('agenda')}
                     />
                 )}
 
                 {(view === 'agenda' || view === 'entregas') && (
-                    <OrderList 
-                        pedidos={pedidos} 
-                        view={view} 
+                    <OrderList
+                        pedidos={pedidos}
+                        view={view}
                         searchTerm={searchTerm}
                         onToggleEstado={toggleEstado}
                         onPrint={generarRecibo}
@@ -120,12 +165,12 @@ function App() {
                 )}
             </div>
 
-            <SearchFab 
-                view={view} 
-                showSearchBox={showSearchBox} 
-                setShowSearchBox={setShowSearchBox} 
-                searchTerm={searchTerm} 
-                setSearchTerm={setSearchTerm} 
+            <SearchFab
+                view={view}
+                showSearchBox={showSearchBox}
+                setShowSearchBox={setShowSearchBox}
+                searchTerm={searchTerm}
+                setSearchTerm={setSearchTerm}
             />
         </div>
     );
