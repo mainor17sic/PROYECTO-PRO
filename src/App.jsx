@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './services/firebase';
 import { generarRecibo } from './services/pdfService';
-// Importaremos estos componentes en los siguientes pasos
 import './App.css';
 import Navbar from './components/Navbar';
 import OrderForm from './components/OrderForm';
@@ -32,6 +31,50 @@ function App() {
                 setPedidos(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
             });
         return () => unsubscribe();
+    }, []);
+
+    // 🔔 Suscripción automática a notificaciones push
+    useEffect(() => {
+        const configurarNotificaciones = async () => {
+            // Esperar a que el bridge de Median esté disponible
+            if (typeof Median === "undefined" || !Median.firebaseMessaging) {
+                console.warn("Median bridge no disponible (¿estás en la app nativa?)");
+                return;
+            }
+
+            try {
+                // 1. Verificar estado del permiso
+                const permiso = await Median.firebaseMessaging.getPermissionStatus();
+                console.log("Permiso actual:", permiso);
+
+                // 2. Pedir permiso si no está concedido
+                if (permiso !== "granted") {
+                    const nuevoPermiso = await Median.firebaseMessaging.requestPermission();
+                    if (nuevoPermiso !== "granted") {
+                        console.log("Usuario denegó las notificaciones");
+                        return;
+                    }
+                }
+
+                // 3. Suscribir al tema de nuevos pedidos
+                await Median.firebaseMessaging.subscribeToTopic("nuevos-pedidos");
+                console.log("✅ Suscrito al tema: nuevos-pedidos");
+
+                // 4. Escuchar cuando el usuario toca una notificación
+                Median.firebaseMessaging.onNotificationTap((payload) => {
+                    console.log("🔔 Notificación tocada:", payload);
+                    const pedidoId = payload?.data?.pedidoId;
+                    if (pedidoId) {
+                        setView("agenda");
+                    }
+                });
+
+            } catch (error) {
+                console.error("❌ Error configurando notificaciones:", error);
+            }
+        };
+
+        configurarNotificaciones();
     }, []);
 
     // Función global para cambiar estados (Pagado/Entregado)
