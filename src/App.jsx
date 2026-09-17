@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import OneSignal from 'react-onesignal'; // 👈 1. Importamos OneSignal
 import { db } from './services/firebase';
 import { generarRecibo } from './services/pdfService';
-// Importaremos estos componentes en los siguientes pasos
 import './App.css';
 import Navbar from './components/Navbar';
 import OrderForm from './components/OrderForm';
@@ -34,36 +34,23 @@ function App() {
         return () => unsubscribe();
     }, []);
 
-    // --- 🔔 IMPLEMENTO DE NOTIFICACIONES PUSH (MEDIAN.CO) ---
+    // --- 🔔 2. IMPLEMENTO DE ONESIGNAL ---
     useEffect(() => {
-        // Verificamos que estemos dentro de la app instalada (Median.co) y que el puente nativo esté listo
-        if (window.Median && window.Median.onReady) {
-            window.Median.onReady(async () => {
-                try {
-                    console.log("Iniciando configuración de notificaciones...");
-                    
-                    // 1. Pedir permiso para notificaciones
-                    const permission = await window.Median.firebaseMessaging.requestPermission();
-                    
-                    if (permission.granted) {
-                        // 2. Obtener el token del dispositivo (útil para depuración)
-                        const result = await window.Median.firebaseMessaging.getToken();
-                        console.log("Token FCM obtenido:", result.token);
-
-                        // 3. Suscribir el dispositivo al tema 'pedidos'
-                        // Esto hace que el dispositivo reciba todas las notificaciones enviadas a este tema
-                        await window.Median.firebaseMessaging.subscribeToTopic({ topic: 'pedidos' });
-                        console.log("Suscrito exitosamente al tema 'pedidos'");
-                    } else {
-                        console.warn("El usuario denegó el permiso para notificaciones.");
-                    }
-                } catch (error) {
-                    console.error("Error configurando las notificaciones push:", error);
-                }
-            });
-        } else {
-            console.log("Median.co no detectado. Las notificaciones solo funcionarán en la app nativa.");
-        }
+        const initOneSignal = async () => {
+            try {
+                await OneSignal.init({
+                    appId: "50e07737-1afa-4a02-b08a-244065c9a69e",
+                    allowLocalhostAsSecureOrigin: true, // Para pruebas
+                });
+                
+                // Pedir permiso al usuario para enviar notificaciones
+                await OneSignal.Notifications.requestPermission();
+                console.log("OneSignal inicializado correctamente");
+            } catch (error) {
+                console.error("Error al inicializar OneSignal:", error);
+            }
+        };
+        initOneSignal();
     }, []);
 
     // Función global para cambiar estados (Pagado/Entregado)
