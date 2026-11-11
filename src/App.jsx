@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { db } from './services/firebase';
 import { generarRecibo } from './services/pdfService';
 import './App.css';
@@ -23,100 +24,59 @@ function App() {
     const [searchTerm, setSearchTerm] = useState("");
     const [showSearchBox, setShowSearchBox] = useState(false);
 
-    // ============================================
-    // Suscripción a Firestore en tiempo real
-    // ============================================
+    // Ref para evitar que notifique todos los pedidos antiguos al cargar por primera vez
+    const esCargaInicial = useRef(true);
+
+    // 1. SOLICITAR PERMISOS DE NOTIFICACIÓN AL CARGAR LA APP
+    useEffect(() => {
+        if ('Notification' in window && Notification.permission !== 'granted') {
+            Notification.requestPermission();
+        }
+    }, []);
+
+    // 2. FUNCIÓN PARA DISPARAR LA NOTIFICACIÓN NATIVA
+    const lanzarNotificacion = (pedido) => {
+        if ('Notification' in window && Notification.permission === 'granted') {
+            const cliente = pedido.cliente || "Cliente";
+            const total = pedido.items 
+                ? pedido.items.reduce((acc, item) => acc + (item.cantidad * item.precio), 0) 
+                : 0;
+
+            const titulo = `🥐 ¡Nuevo Pedido #${pedido.correlativo || ''}!`;
+            const opciones = {
+                body: `Cliente: ${cliente}\nTotal: Q${total.toFixed(2)}`,
+                icon: '/favicon.ico',
+                vibrate: [200, 100, 200],
+                tag: `pedido-${pedido.correlativo || Date.now()}`
+            };
+
+            new Notification(titulo, opciones);
+        }
+    };
+
+    // 3. SUSCRIPCIÓN EN TIEMPO REAL A FIRESTORE + DETECCIÓN DE NUEVOS PEDIDOS
     useEffect(() => {
         const unsubscribe = db.collection("pedidos")
             .orderBy("timestamp", "desc")
             .onSnapshot(snap => {
-                setPedidos(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                const nuevosPedidos = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+                // Detectar si hubo una nueva inserción en tiempo real
+                snap.docChanges().forEach(change => {
+                    if (change.type === "added" && !esCargaInicial.current) {
+                        const nuevoPedido = change.doc.data();
+                        lanzarNotificacion(nuevoPedido);
+                    }
+                });
+
+                setPedidos(nuevosPedidos);
+                esCargaInicial.current = false;
             });
+
         return () => unsubscribe();
     }, []);
 
-    // ============================================
-    // 🔔 Notificaciones Push con Median + FCM
-    // ============================================
-    useEffect(() => {
-        const configurarNotificaciones = () => {
-            // 1. Verificar que el bridge de Median exista (usando window.median)
-            if (typeof window.median === "undefined") {
-                console.warn("⚠️ window.median no está definido. ¿Estás en el navegador o en la app nativa?");
-                return;
-            }
-            if (!window.median.firebaseMessaging) {
-                console.warn("⚠️ window.median.firebaseMessaging no existe. El plugin FCM no está activado en Median.");
-                return;
-            }
-
-            console.log("✅ Bridge de Median detectado. Configurando notificaciones...");
-
-            // 2. Escuchar taps en notificaciones (deep link)
-            if (window.median.firebaseMessaging.onNotificationTap) {
-                window.median.firebaseMessaging.onNotificationTap((payload) => {
-                    console.log("🔔 Notificación tocada:", payload);
-                    const pedidoId = payload && payload.data ? payload.data.pedidoId : null;
-                    if (pedidoId) {
-                        setView("agenda");
-                    }
-                });
-            }
-
-            // 3. Pedir permiso y suscribir al tema
-            window.median.firebaseMessaging.requestPermission({
-                callback: function (result) {
-                    console.log("Permiso solicitado:", result);
-
-                    if (result && result.granted) {
-                        console.log("✅ Permiso concedido");
-
-                        // 3a. Obtener token (para diagnóstico / Plan B)
-                        window.median.firebaseMessaging.getToken({
-                            callback: function (tokenResult) {
-                                if (tokenResult && tokenResult.token) {
-                                    console.log("📱 Token FCM:", tokenResult.token);
-                                } else {
-                                    console.warn("⚠️ No se pudo obtener token:", tokenResult);
-                                }
-                            }
-                        });
-
-                        // 3b. Suscribir al tema "nuevos-pedidos"
-                        window.median.firebaseMessaging.subscribeToTopic({
-                            topic: "nuevos-pedidos", // 👈 IMPORTANTE: Este nombre debe coincidir con tu Cloud Function
-                            callback: function (subResult) {
-                                console.log("Resultado subscribeToTopic:", subResult);
-
-                                if (subResult && subResult.success) {
-                                    console.log("🎉 ¡Suscrito al tema nuevos-pedidos! Recibirá notificaciones masivas.");
-                                } else {
-                                    console.error("❌ Error al suscribir:", subResult);
-                                }
-                            }
-                        });
-
-                        // 3c. Verificar temas suscritos (diagnóstico)
-                        if (window.median.firebaseMessaging.getSubscribedTopics) {
-                            window.median.firebaseMessaging.getSubscribedTopics({
-                                callback: function (topicsResult) {
-                                    console.log("📋 Temas suscritos actualmente:", topicsResult);
-                                }
-                            });
-                        }
-                    } else {
-                        console.warn("⚠️ Permiso de notificaciones denegado:", result);
-                    }
-                }
-            });
-        };
-
-        configurarNotificaciones();
-    }, []);
-
-    // ============================================
-    // Cambiar estado de pedidos (Pagado / Entregado)
-    // ============================================
+    // 4. FUNCIÓN GLOBAL PARA CAMBIAR ESTADOS (PAGADO/ENTREGADO)
     const toggleEstado = (id, campo, valor) => {
         const pass = prompt("PIN:");
         if (pass === "00") {
@@ -138,16 +98,16 @@ function App() {
 
             <div className="pt-24 px-4 view-transition">
                 {view === 'crear' && (
-                    <OrderForm
-                        productos={PRODUCTOS_MENU}
-                        onSuccess={() => setView('agenda')}
+                    <OrderForm 
+                        productos={PRODUCTOS_MENU} 
+                        onSuccess={() => setView('agenda')} 
                     />
                 )}
 
                 {(view === 'agenda' || view === 'entregas') && (
-                    <OrderList
-                        pedidos={pedidos}
-                        view={view}
+                    <OrderList 
+                        pedidos={pedidos} 
+                        view={view} 
                         searchTerm={searchTerm}
                         onToggleEstado={toggleEstado}
                         onPrint={generarRecibo}
@@ -159,15 +119,16 @@ function App() {
                 )}
             </div>
 
-            <SearchFab
-                view={view}
-                showSearchBox={showSearchBox}
-                setShowSearchBox={setShowSearchBox}
-                searchTerm={searchTerm}
-                setSearchTerm={setSearchTerm}
+            <SearchFab 
+                view={view} 
+                showSearchBox={showSearchBox} 
+                setShowSearchBox={setShowSearchBox} 
+                searchTerm={searchTerm} 
+                setSearchTerm={setSearchTerm} 
             />
         </div>
     );
 }
 
 export default App;
+
