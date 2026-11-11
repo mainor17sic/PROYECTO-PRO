@@ -23,24 +23,23 @@ function App() {
     const [searchTerm, setSearchTerm] = useState("");
     const [showSearchBox, setShowSearchBox] = useState(false);
 
-    // Estado para la alerta visual interna (In-App Banner)
-    const [alertaPedido, setAlertaPedido] = useState(null);
+    // Estado cambiado a un ARRAY para acumular múltiples alertas de pedidos
+    const [alertasPedidos, setAlertasPedidos] = useState([]);
 
     // Ref para evitar que suene con pedidos antiguos al abrir la app
     const esCargaInicial = useRef(true);
 
-    // 1. GENERADOR DE TIMBRE SONORO NATIVO (SIN ARCHIVOS EXTERNOS)
+    // 1. GENERADOR DE TIMBRE SONORO NATIVO
     const reproducirTimbre = () => {
         try {
             const AudioCtx = window.AudioContext || window.webkitAudioContext;
             if (!AudioCtx) return;
             const ctx = new AudioCtx();
 
-            // Primer tono (campana aguda)
             const osc1 = ctx.createOscillator();
             const gain1 = ctx.createGain();
             osc1.type = 'sine';
-            osc1.frequency.setValueAtTime(880, ctx.currentTime); // Nota A5
+            osc1.frequency.setValueAtTime(880, ctx.currentTime);
             gain1.gain.setValueAtTime(0.3, ctx.currentTime);
             gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
             osc1.connect(gain1);
@@ -48,11 +47,10 @@ function App() {
             osc1.start();
             osc1.stop(ctx.currentTime + 0.4);
 
-            // Segundo tono (más agudo, 150ms después)
             const osc2 = ctx.createOscillator();
             const gain2 = ctx.createGain();
             osc2.type = 'sine';
-            osc2.frequency.setValueAtTime(1174.66, ctx.currentTime + 0.15); // Nota D6
+            osc2.frequency.setValueAtTime(1174.66, ctx.currentTime + 0.15);
             gain2.gain.setValueAtTime(0.3, ctx.currentTime + 0.15);
             gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.65);
             osc2.connect(gain2);
@@ -60,36 +58,37 @@ function App() {
             osc2.start(ctx.currentTime + 0.15);
             osc2.stop(ctx.currentTime + 0.65);
         } catch (e) {
-            console.warn("El navegador requiere un toque previo en pantalla para habilitar el audio:", e);
+            console.warn("Audio bloqueado temporalmente por el navegador", e);
         }
     };
 
-    // 2. FUNCIÓN PARA DISPARAR ALERTA VISUAL + SONIDO + VIBRACIÓN
+    // 2. ACUMULAR NUEVAS ALERTAS EN LA LISTA
     const lanzarAlertaInterna = (pedido) => {
         const cliente = pedido.cliente || "Cliente";
         const total = pedido.items 
             ? pedido.items.reduce((acc, item) => acc + (item.cantidad * item.precio), 0) 
             : 0;
 
-        // Activar el banner visual en pantalla
-        setAlertaPedido({
-            correlativo: pedido.correlativo || '',
+        const nuevaAlerta = {
+            idUnico: `${pedido.correlativo || Date.now()}-${Math.random()}`,
+            correlativo: pedido.correlativo || 'S/N',
             cliente,
             total: total.toFixed(2)
-        });
+        };
 
-        // Vibrar teléfono (si el dispositivo lo soporta)
+        // Agregamos el nuevo pedido al final de la lista existente sin borrar los anteriores
+        setAlertasPedidos(prev => [...prev, nuevaAlerta]);
+
         if ('vibrate' in navigator) {
             navigator.vibrate([300, 150, 300]);
         }
 
-        // Reproducir timbre doble
         reproducirTimbre();
+    };
 
-        // Ocultar automáticamente el banner después de 8 segundos
-        setTimeout(() => {
-            setAlertaPedido(prev => (prev?.cliente === cliente ? null : prev));
-        }, 8000);
+    // Función para descartar una alerta individual de la lista
+    const cerrarAlerta = (idUnico) => {
+        setAlertasPedidos(prev => prev.filter(alerta => alerta.idUnico !== idUnico));
     };
 
     // 3. SUSCRIPCIÓN EN TIEMPO REAL A FIRESTORE
@@ -132,37 +131,40 @@ function App() {
     return (
         <div className="max-w-md mx-auto min-h-screen pb-32 relative">
             
-            {/* BANNER FLOTANTE DE NUEVO PEDIDO (IN-APP NOTIFICATION) */}
-            {alertaPedido && (
-                <div 
-                    onClick={() => {
-                        setView('agenda');
-                        setAlertaPedido(null);
-                    }}
-                    className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 w-11/12 max-w-sm bg-blue-600 text-white px-4 py-3 rounded-2xl shadow-2xl border-2 border-blue-300 flex items-center justify-between cursor-pointer animate-bounce"
-                >
-                    <div className="flex items-center space-x-3">
-                        <span className="text-2xl">🥐</span>
-                        <div>
-                            <p className="font-bold text-sm uppercase tracking-wide">
-                                ¡Nuevo Pedido #{alertaPedido.correlativo}!
-                            </p>
-                            <p className="text-xs text-blue-100">
-                                {alertaPedido.cliente} • <strong>Q{alertaPedido.total}</strong>
-                            </p>
-                        </div>
-                    </div>
-                    <button 
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            setAlertaPedido(null);
+            {/* CONTENEDOR DE BANNERS FLOTANTES (MÚLTIPLES PEDIDOS) */}
+            <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 w-11/12 max-w-sm space-y-2">
+                {alertasPedidos.map((alerta) => (
+                    <div 
+                        key={alerta.idUnico}
+                        onClick={() => {
+                            setView('agenda');
+                            cerrarAlerta(alerta.idUnico);
                         }}
-                        className="text-white font-bold text-lg px-2 hover:text-blue-200"
+                        className="bg-blue-600 text-white px-4 py-3 rounded-2xl shadow-2xl border-2 border-blue-300 flex items-center justify-between cursor-pointer animate-bounce"
                     >
-                        ✕
-                    </button>
-                </div>
-            )}
+                        <div className="flex items-center space-x-3">
+                            <span className="text-2xl">🥐</span>
+                            <div>
+                                <p className="font-bold text-sm uppercase tracking-wide">
+                                    ¡Nuevo Pedido #{alerta.correlativo}!
+                                </p>
+                                <p className="text-xs text-blue-100">
+                                    {alerta.cliente} • <strong>Q{alerta.total}</strong>
+                                </p>
+                            </div>
+                        </div>
+                        <button 
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                cerrarAlerta(alerta.idUnico);
+                            }}
+                            className="text-white font-bold text-lg px-2 hover:text-blue-200"
+                        >
+                            ✕
+                        </button>
+                    </div>
+                ))}
+            </div>
 
             <Navbar view={view} setView={setView} />
 
