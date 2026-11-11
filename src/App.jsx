@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from './services/firebase';
 import { generarRecibo } from './services/pdfService';
@@ -24,7 +23,7 @@ function App() {
     const [searchTerm, setSearchTerm] = useState("");
     const [showSearchBox, setShowSearchBox] = useState(false);
 
-    // Ref para evitar que notifique todos los pedidos antiguos al cargar por primera vez
+    // Ref para evitar notificar pedidos antiguos al cargar la app por primera vez
     const esCargaInicial = useRef(true);
 
     // 1. SOLICITAR PERMISOS DE NOTIFICACIÓN AL CARGAR LA APP
@@ -34,23 +33,37 @@ function App() {
         }
     }, []);
 
-    // 2. FUNCIÓN PARA DISPARAR LA NOTIFICACIÓN NATIVA
-    const lanzarNotificacion = (pedido) => {
-        if ('Notification' in window && Notification.permission === 'granted') {
-            const cliente = pedido.cliente || "Cliente";
-            const total = pedido.items 
-                ? pedido.items.reduce((acc, item) => acc + (item.cantidad * item.precio), 0) 
-                : 0;
+    // 2. FUNCIÓN DE NOTIFICACIÓN COMPATIBLE CON MÓVILES (ANDROID) Y ESCRITORIO
+    const lanzarNotificacion = async (pedido) => {
+        if (!('Notification' in window) || Notification.permission !== 'granted') return;
 
-            const titulo = `🥐 ¡Nuevo Pedido #${pedido.correlativo || ''}!`;
-            const opciones = {
-                body: `Cliente: ${cliente}\nTotal: Q${total.toFixed(2)}`,
-                icon: '/favicon.ico',
-                vibrate: [200, 100, 200],
-                tag: `pedido-${pedido.correlativo || Date.now()}`
-            };
+        const cliente = pedido.cliente || "Cliente";
+        const total = pedido.items 
+            ? pedido.items.reduce((acc, item) => acc + (item.cantidad * item.precio), 0) 
+            : 0;
 
+        const titulo = `🥐 ¡Nuevo Pedido #${pedido.correlativo || ''}!`;
+        const opciones = {
+            body: `Cliente: ${cliente}\nTotal: Q${total.toFixed(2)}`,
+            icon: '/favicon.ico',
+            vibrate: [200, 100, 200],
+            tag: `pedido-${pedido.correlativo || Date.now()}`
+        };
+
+        try {
+            // Intento 1: Vía Service Worker (Obligatorio para Chrome en Android)
+            if ('serviceWorker' in navigator) {
+                const registration = await navigator.serviceWorker.ready;
+                if (registration && registration.showNotification) {
+                    await registration.showNotification(titulo, opciones);
+                    return;
+                }
+            }
+            
+            // Intento 2: API estándar (Para PC / Navegadores de escritorio)
             new Notification(titulo, opciones);
+        } catch (e) {
+            console.error("Error al mostrar notificación:", e);
         }
     };
 
@@ -131,4 +144,3 @@ function App() {
 }
 
 export default App;
-
