@@ -23,10 +23,7 @@ function App() {
     const [searchTerm, setSearchTerm] = useState("");
     const [showSearchBox, setShowSearchBox] = useState(false);
 
-    // Estado cambiado a un ARRAY para acumular múltiples alertas de pedidos
     const [alertasPedidos, setAlertasPedidos] = useState([]);
-
-    // Ref para evitar que suene con pedidos antiguos al abrir la app
     const esCargaInicial = useRef(true);
 
     // 1. GENERADOR DE TIMBRE SONORO NATIVO
@@ -62,21 +59,25 @@ function App() {
         }
     };
 
-    // 2. ACUMULAR NUEVAS ALERTAS EN LA LISTA
-    const lanzarAlertaInterna = (pedido) => {
+    // 2. LANZAR ALERTA Y GESTIONAR CACHÉ (localStorage)
+    const lanzarAlertaInterna = (idPedido, pedido) => {
+        const notificadosCache = JSON.parse(localStorage.getItem('marvin_pedidos_notificados') || '[]');
+        
+        // Si este pedido ya fue notificado en este dispositivo, lo ignoramos
+        if (notificadosCache.includes(idPedido)) return;
+
         const cliente = pedido.cliente || "Cliente";
         const total = pedido.items 
             ? pedido.items.reduce((acc, item) => acc + (item.cantidad * item.precio), 0) 
             : 0;
 
         const nuevaAlerta = {
-            idUnico: `${pedido.correlativo || Date.now()}-${Math.random()}`,
+            idUnico: `${idPedido}-${Math.random()}`,
             correlativo: pedido.correlativo || 'S/N',
             cliente,
             total: total.toFixed(2)
         };
 
-        // Agregamos el nuevo pedido al final de la lista existente sin borrar los anteriores
         setAlertasPedidos(prev => [...prev, nuevaAlerta]);
 
         if ('vibrate' in navigator) {
@@ -84,9 +85,13 @@ function App() {
         }
 
         reproducirTimbre();
+
+        // Registrar en caché local que este pedido ya fue notificado
+        notificadosCache.push(idPedido);
+        if (notificadosCache.length > 100) notificadosCache.shift();
+        localStorage.setItem('marvin_pedidos_notificados', JSON.stringify(notificadosCache));
     };
 
-    // Función para descartar una alerta individual de la lista
     const cerrarAlerta = (idUnico) => {
         setAlertasPedidos(prev => prev.filter(alerta => alerta.idUnico !== idUnico));
     };
@@ -98,15 +103,23 @@ function App() {
             .onSnapshot(snap => {
                 const nuevosPedidos = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-                snap.docChanges().forEach(change => {
-                    if (change.type === "added" && !esCargaInicial.current) {
-                        const nuevoPedido = change.doc.data();
-                        lanzarAlertaInterna(nuevoPedido);
-                    }
-                });
+                if (esCargaInicial.current) {
+                    // En la carga inicial de un dispositivo nuevo, verificamos los pedidos existentes
+                    // para notificar los pendientes si no estaban registrados en su caché local.
+                    snap.docs.forEach(doc => {
+                        lanzarAlertaInterna(doc.id, doc.data());
+                    });
+                    esCargaInicial.current = false;
+                } else {
+                    // Si la app ya está abierta, escuchamos los cambios en tiempo real
+                    snap.docChanges().forEach(change => {
+                        if (change.type === "added") {
+                            lanzarAlertaInterna(change.doc.id, change.doc.data());
+                        }
+                    });
+                }
 
                 setPedidos(nuevosPedidos);
-                esCargaInicial.current = false;
             });
 
         return () => unsubscribe();
@@ -131,7 +144,7 @@ function App() {
     return (
         <div className="max-w-md mx-auto min-h-screen pb-32 relative">
             
-            {/* CONTENEDOR DE BANNERS FLOTANTES (MÚLTIPLES PEDIDOS) */}
+            {/* CONTENEDOR DE BANNERS FLOTANTES MÚLTIPLES */}
             <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 w-11/12 max-w-sm space-y-2">
                 {alertasPedidos.map((alerta) => (
                     <div 
